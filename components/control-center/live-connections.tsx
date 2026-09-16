@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { GitBranch, PanelsTopLeft, Link2, Loader2 } from 'lucide-react'
 import type { Settings, Snapshot } from '@/lib/live-types'
 import { requestLive, useLive } from './live'
@@ -20,6 +20,8 @@ export function LiveConnections() {
   const [provider, setProvider] = useState<keyof typeof providers>(snapshot?.board && snapshot.board in providers ? snapshot.board as keyof typeof providers : 'notion')
   const [boardUrl, setBoardUrl] = useState('')
   const [boardToken, setBoardToken] = useState('')
+  const [taigaUsername, setTaigaUsername] = useState('')
+  const [taigaPassword, setTaigaPassword] = useState('')
   const [email, setEmail] = useState('')
   const [projectKey, setProjectKey] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
@@ -29,18 +31,22 @@ export function LiveConnections() {
   const boardConnected = snapshot && snapshot.board !== 'none' && !boardError
   const disabled = !!busy || loading
 
+  useEffect(() => {
+    if (snapshot && !repoUrl) setRepoUrl(snapshot.url)
+  }, [repoUrl, snapshot])
+
   async function run(scope: 'repo' | 'board' | 'all' | 'disconnect' | 'remove-board') {
     setBusy(scope)
     const target = scope === 'remove-board' ? 'board' : scope
     setMessages(m => ({ ...m, [target]: '' }))
-    const settings: Settings = { repoUrl, gitToken, provider: scope === 'remove-board' ? 'none' : provider, boardUrl, boardToken, email, projectKey }
+    const settings: Settings = { repoUrl, gitToken, provider: scope === 'remove-board' ? 'none' : provider, boardUrl, boardToken, email, projectKey, taigaUsername, taigaPassword }
     try {
       const result: Snapshot | null = await requestLive(scope === 'disconnect' ? 'disconnect' : 'sync', ['repo', 'board', 'remove-board'].includes(scope) ? { scope: scope === 'remove-board' ? 'board' : scope, settings } : {})
       setSnapshot(result)
       const warning = result?.warnings.find(w => w.startsWith('Tablero no sincronizado:'))
       setMessages(m => ({ ...m, [target]: scope === 'disconnect' ? 'Conexiones cerradas y credenciales eliminadas.' : scope === 'remove-board' ? 'Tablero desconectado.' : scope === 'board' ? warning || `${selected.name} conectado. Sus datos ya están en el resumen.` : scope === 'repo' ? 'Repositorio conectado. Revisa los datos y avisos en Resumen.' : 'Sincronización terminada. Revisa los avisos en Resumen.' }))
       if (scope === 'repo' || scope === 'disconnect') setGitToken('')
-      if (scope === 'board' || scope === 'remove-board' || scope === 'disconnect') setBoardToken('')
+      if (scope === 'board' || scope === 'remove-board' || scope === 'disconnect') { setBoardToken(''); setTaigaPassword('') }
     } catch (error) {
       setMessages(m => ({ ...m, [target]: (error as Error).message }))
     } finally { setBusy(null) }
@@ -73,10 +79,10 @@ export function LiveConnections() {
           <span className="rounded-full bg-muted px-2 py-1 text-xs">{boardError ? 'Revisar conexión' : boardConnected ? `Conectado: ${snapshot.board}` : 'Sin conectar'}</span>
         </div>
         <form className="space-y-4 p-5" onSubmit={e => { e.preventDefault(); run('board') }}>
-          <fieldset disabled={disabled} className="space-y-2"><legend className="mb-2 text-sm">Plataforma del tablero</legend><div className="grid grid-cols-3 gap-2">{(Object.keys(providers) as (keyof typeof providers)[]).map(key => <button key={key} type="button" aria-pressed={provider === key} onClick={() => { setProvider(key); setBoardUrl(''); setBoardToken(''); setEmail(''); setProjectKey(''); setMessages(m => ({ ...m, board: '' })) }} className={`rounded-md border px-3 py-2 text-sm transition-colors ${provider === key ? 'border-primary bg-primary/10 text-primary' : 'border-input text-muted-foreground hover:bg-accent'}`}>{providers[key].name}</button>)}</div></fieldset>
+          <fieldset disabled={disabled} className="space-y-2"><legend className="mb-2 text-sm">Plataforma del tablero</legend><div className="grid grid-cols-3 gap-2">{(Object.keys(providers) as (keyof typeof providers)[]).map(key => <button key={key} type="button" aria-pressed={provider === key} onClick={() => { setProvider(key); setBoardUrl(''); setBoardToken(''); setTaigaUsername(''); setTaigaPassword(''); setEmail(''); setProjectKey(''); setMessages(m => ({ ...m, board: '' })) }} className={`rounded-md border px-3 py-2 text-sm transition-colors ${provider === key ? 'border-primary bg-primary/10 text-primary' : 'border-input text-muted-foreground hover:bg-accent'}`}>{providers[key].name}</button>)}</div></fieldset>
           <label className="block space-y-1"><span className="text-sm">URL {provider === 'notion' ? 'de la base de datos Notion' : `del tablero ${selected.name}`}</span><input required type="url" className={field} value={boardUrl} onChange={e => setBoardUrl(e.target.value)} placeholder={selected.placeholder} /></label>
           <p className="text-xs text-muted-foreground">{selected.hint}</p>
-          <label className="block space-y-1"><span className="text-sm">{selected.token}</span><input required type="password" autoComplete="off" className={field} value={boardToken} onChange={e => setBoardToken(e.target.value)} placeholder="Token con acceso al tablero" /></label>
+          {provider === 'taiga' ? <><label className="block space-y-1"><span className="text-sm">Nombre de usuario de Taiga</span><input required type="text" autoComplete="username" className={field} value={taigaUsername} onChange={e => setTaigaUsername(e.target.value)} placeholder="Tu nombre de usuario, no el nombre del proyecto" /></label><label className="block space-y-1"><span className="text-sm">Contraseña de Taiga</span><input required type="password" autoComplete="current-password" className={field} value={taigaPassword} onChange={e => setTaigaPassword(e.target.value)} placeholder="Tu contraseña de Taiga" /></label><p className="text-xs text-muted-foreground">La aplicación iniciará sesión en Taiga y guardará el token solo durante esta sesión.</p></> : <label className="block space-y-1"><span className="text-sm">{selected.token}</span><input required type="password" autoComplete="off" className={field} value={boardToken} onChange={e => setBoardToken(e.target.value)} placeholder="Token con acceso al tablero" /></label>}
           {provider === 'jira' && <><label className="block space-y-1"><span className="text-sm">Email de la cuenta Jira</span><input required type="email" className={field} value={email} onChange={e => setEmail(e.target.value)} placeholder="nombre@empresa.com" /></label><label className="block space-y-1"><span className="text-sm">Clave del proyecto (si no está en la URL)</span><input className={field} value={projectKey} onChange={e => setProjectKey(e.target.value)} placeholder="APP" /></label></>}
           {!snapshot && <p className="text-xs text-muted-foreground">Conecta primero el repositorio en el apartado de la izquierda.</p>}
           <div className="flex flex-wrap gap-2"><button className={button} disabled={disabled || !snapshot}>{busy === 'board' && <Loader2 className="size-4 animate-spin" />}{busy === 'board' ? 'Conectando…' : `Conectar ${selected.name}`}</button>{snapshot && snapshot.board !== 'none' && <button type="button" className="rounded-md border px-3 py-2 text-sm disabled:opacity-40" disabled={disabled} onClick={() => run('remove-board')}>Desconectar tablero</button>}</div>

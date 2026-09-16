@@ -1,5 +1,5 @@
-import { ControlCenter } from '@/components/control-center/control-center'
+import { AuthGate } from '@/components/auth/auth-gate'
 
 export default function Page() {
-  return <ControlCenter />
+  return <AuthGate />
 }

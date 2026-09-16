@@ -1,77 +1,283 @@
 # Product Engineering Control Center (PECC)
 
-Aplicaci?n Next.js para consultar un repositorio GitHub real y un tablero Jira Cloud, Taiga Cloud o Notion, revisar actividad con autor?a y generar res?menes ejecutivos con IA.
+PECC es un centro de control para Product Managers. Reune la actividad de un repositorio GitHub con el trabajo de un tablero de producto y ayuda a convertir datos tecnicos en decisiones ejecutivas.
 
-## Iniciar
+## Que incluye
 
-Desde la carpeta que contiene package.json:
+- Panel de resumen con salud del proyecto, metricas, actividad y riesgos.
+- Presentacion ejecutiva para comunicar avances, pendientes y decisiones.
+- Integraciones con GitHub, Taiga Cloud, Jira Cloud y Notion.
+- Trazabilidad entre trabajo de producto y evidencia tecnica.
+- Busqueda por trabajo, persona, estado o autor, con filtros independientes por fuente y estado.
+- Estados vacios y estados de carga para evitar acciones ambiguas durante una sincronizacion.
+- Asistente con IA para resumenes, riesgos y solicitudes tecnicas.
+- Propuestas de cambios de codigo con revision y aprobacion explicita.
+- Perfil del PM visible en la barra superior y cierre de sesion local y de servidor.
+- Mensajes diferenciados para timeouts, servidor detenido y respuestas invalidas.
+- Temas claro y oscuro con transicion animada.
+- Login y registro local de demostracion.
+
+> Estado actual: el login y registro son un prototipo local. Las cuentas se guardan en `localStorage` y no sustituyen un sistema de autenticacion para produccion.
+
+## Requisitos
+
+- Node.js 20 o superior.
+- npm, pnpm o un gestor compatible.
+- Una cuenta de GitHub si vas a conectar un repositorio privado.
+- Una cuenta de Taiga, Jira o Notion si vas a conectar un tablero.
+
+## Instalacion
+
+Clona el repositorio y entra en su carpeta:
+
+```bash
+git clone <URL_DEL_REPOSITORIO>
+cd Product-Engineering-Control-Center-PECC--main
+```
+
+Instala las dependencias:
 
 ```bash
 npm install
+```
+
+Inicia el servidor de desarrollo:
+
+```bash
 npm run dev
 ```
 
-Tambi?n puedes usar pnpm install y pnpm dev. En PowerShell con scripts deshabilitados usa npm.cmd. Abre http://localhost:3000.
+Abre [http://localhost:3000](http://localhost:3000).
 
-Para habilitar IA con Groq, copia .env.example a .env.local, configura GROQ_API_KEY con tu clave de Groq y GROQ_MODEL con un modelo compatible con Chat Completions y JSON mode (por ejemplo, llama-3.3-70b-versatile), y reinicia el servidor. La clave es exclusivamente del servidor. El asistente anterior era una simulaci?n; no hab?a una conexi?n a un agente externo configurado.
+En PowerShell puedes usar `npm.cmd` si las politicas de ejecucion bloquean los scripts:
 
-## Conectar fuentes reales
+```powershell
+npm.cmd install
+npm.cmd run dev
+```
 
-1. En Conexiones, apartado **Repositorio de c?digo**, introduce https://github.com/propietario/repositorio. Para repositorios privados agrega un token fine-grained con acceso al repositorio y permisos de lectura Contents, Issues y Pull requests. Para aplicar propuestas necesita Contents: Read and write.
-2. Pulsa **Conectar repositorio**. En el apartado independiente **Tablero de producto**, selecciona Notion, Taiga o Jira e introduce su URL y credenciales:
-   - Jira Cloud: URL del tablero con /boards/ID o rapidView=ID, o URL de proyecto con /projects/CLAVE. Para URLs sin identificador introduce la clave del proyecto. Usa email y API token de la cuenta con acceso. Un tablero consulta sus issues; una clave consulta el proyecto.
-   - Taiga Cloud: https://tree.taiga.io/project/slug/kanban y token de autenticaci?n Taiga.
-   - Notion: URL de la base de datos original con su UUID y token de una integraci?n a la que hayas compartido esa base. Consulta todas sus fuentes de datos. Una p?gina cualquiera o una vista enlazada no sustituye la base original.
-3. Pulsa **Conectar Notion**, **Conectar Taiga** o **Conectar Jira**. No necesitas volver a ingresar el token GitHub. Revisa los avisos del Resumen. **Sincronizar todo** reutiliza las credenciales del servidor. **Desconectar tablero** conserva el repositorio; **Desconectar todo** cierra ambas conexiones. Al actualizar una conexi?n, introduce nuevamente solo el token correspondiente.
+## Primer acceso
 
-Se muestran commits, PRs e issues con autor, tareas con creador o ?ltimo editor y responsables por separado, estados y enlaces originales. En **Presentaci?n** se presenta una lectura ejecutiva para clientes, separada del detalle t?cnico. El **Resumen** calcula un sem?foro explicable y **Alertas** convierte bloqueos, PRs estancados, trabajo sin responsable y fallos de cobertura en riesgos con impacto, evidencia y siguiente acci?n. Las pantallas activas usan datos reales; lib/data.ts y las vistas antiguas quedan como referencia del prototipo y no alimentan el panel.
+Al abrir la aplicacion se muestra la pantalla de acceso.
 
-## IA y aprobaci?n de c?digo
+### Cuenta demo
 
-En Asistente escribe la solicitud y pulsa Generar respuesta ejecutiva. Para revisar c?digo selecciona una ruta del inventario y pulsa Proponer cambio para revisi?n. Estas operaciones env?an contexto a OpenAI y pueden consumir saldo de API.
+La aplicacion crea una cuenta local de prueba automaticamente:
 
-La propuesta presenta motivo, riesgos/pruebas sugeridas, archivo, commit base y contenido completo antes/despu?s. Marca la autorizaci?n espec?fica y pulsa Aprobar y crear rama para guardar ese contenido exacto en una rama pecc/proposal-ID. No se modifica la rama principal, no se fusiona ni se crea un PR autom?ticamente. Puedes abrir el PR desde GitHub despu?s de revisar y ejecutar pruebas.
+| Campo | Valor |
+| --- | --- |
+| Correo | `pm@pecc.local` |
+| Contrasena | `pecc-demo` |
 
-El servidor guarda la propuesta; no acepta contenido modificado desde el bot?n de aprobaci?n. Rechaza propuestas ya procesadas, de otra sesi?n o cuya rama base haya cambiado. Los errores de escritura no se reintentan autom?ticamente: revisa si la rama existe antes de generar otra propuesta. Rechazar no escribe en GitHub. El agente no dispone de herramientas de ejecuci?n libre ni puede aprobar sus propias propuestas.
+Tambien puedes pulsar **Cargar acceso** en el formulario. Luego pulsa **Entrar al centro de control**.
 
-## Cobertura y l?mites actuales
+### Registrar otra cuenta local
 
-- Sincronizaci?n manual: commits accesibles desde la rama principal, PRs de todos los estados, issues e inventario de archivos. Cada colecci?n pagina hasta 2.000 registros y advierte si alcanza el l?mite.
-- No es una auditor?a exhaustiva de todos los datos: no descarga todas las ramas, comentarios, revisiones, CI, releases, historial de cambios del tablero ni contenido de todas las p?ginas Notion. No calcula autom?ticamente cumplimiento de criterios o relaciones tarea-c?digo.
-- Taiga consulta historias, tareas e issues. Notion muestra el ID del ?ltimo editor cuando la respuesta no incluye nombre. Responsable asignado no equivale a autor del trabajo finalizado.
-- La IA recibe como m?ximo 300 registros recientes y 300 rutas para los res?menes. Las propuestas reciben un archivo UTF-8 de hasta 24 KB; el resultado se limita a 48 KB. No ejecuta pruebas del repositorio conectado.
-- GitLab, Bitbucket, Jira Server y Taiga autoalojado todav?a no tienen conector. Se restringen los destinos de red a los proveedores admitidos. La IA usa Groq mediante su API compatible con OpenAI.
-- Sesiones aisladas por cookie HttpOnly/SameSite, en memoria del proceso durante cuatro horas. Reiniciar el servidor pierde credenciales, datos y propuestas. No se almacenan tokens en localStorage ni se devuelven al cliente.
-- Esta versi?n es para uso local en una sola instancia. Antes de exponerla como servicio compartido necesita autenticaci?n de usuarios, roles de aprobaci?n, almacenamiento cifrado persistente, auditor?a duradera, cuotas y sesiones compartidas entre instancias. La sesi?n local representa a la persona que aprueba, no una identidad empresarial verificada.
+1. Selecciona **Registrarme**.
+2. Introduce nombre, correo y una contrasena de al menos seis caracteres.
+3. Pulsa **Crear mi espacio**.
 
-## Verificar
+La cuenta se guarda solo en el navegador actual. Para cerrar sesion usa el icono de salida en la barra superior. Para borrar la cuenta local, elimina los datos del sitio desde las herramientas del navegador.
+
+## Conectar GitHub
+
+1. Entra en **Conexiones**.
+2. En **Repositorio de codigo**, introduce una URL como `https://github.com/organizacion/repositorio`.
+3. Para repositorios publicos el token es opcional.
+4. Para repositorios privados, usa un token fine-grained con acceso al repositorio y permisos de lectura de:
+   - Contents
+   - Issues
+   - Pull requests
+5. Pulsa **Conectar repositorio**.
+
+Las propuestas aprobadas necesitan permiso adicional de escritura en **Contents**. PECC consulta commits de la rama principal, pull requests, issues e inventario de archivos.
+
+## Conectar un tablero
+
+Primero conecta GitHub. Despues abre el apartado **Tablero de producto**, selecciona una plataforma e introduce sus credenciales.
+
+### Taiga Cloud
+
+Usa una URL como:
+
+```text
+https://tree.taiga.io/project/slug-del-proyecto/kanban
+```
+
+PECC solicita el nombre de usuario y la contrasena de Taiga y obtiene el token de API automaticamente. No introduzcas el nombre del proyecto como usuario.
+
+La integracion consulta historias de usuario, tareas e issues. Si tu cuenta usa Google, GitHub u otro proveedor de inicio de sesion, necesitas tener una contrasena local de Taiga para este flujo.
+
+### Jira Cloud
+
+Usa una URL de tablero o proyecto, por ejemplo:
+
+```text
+https://mi-empresa.atlassian.net/jira/software/projects/APP/boards/1
+```
+
+Introduce:
+
+- Email de la cuenta Jira.
+- API token creado desde la cuenta Atlassian.
+- Clave del proyecto si no puede extraerse de la URL.
+
+### Notion
+
+Usa la URL de la base de datos original, no la URL de una nota ni de una vista enlazada. La base debe estar compartida explicitamente con la integracion de Notion.
+
+Introduce el token de la integracion con permisos de:
+
+- Leer contenido.
+- Actualizar contenido, si vas a editar notas.
+
+PECC consulta las fuentes de datos de la base y puede leer o preparar cambios para notas autorizadas.
+
+### Sincronizacion
+
+- **Conectar tablero** sincroniza la plataforma seleccionada.
+- **Sincronizar todo** actualiza GitHub y el tablero guardado en la sesion.
+- **Desconectar tablero** conserva la conexion de GitHub.
+- **Desconectar todo** elimina la sesion y sus credenciales.
+
+Las credenciales externas se guardan en la sesion del servidor durante cuatro horas desde la ultima actividad de sincronizacion. No se almacenan en `localStorage` ni se envian de vuelta al navegador. Al cerrar sesion se invalida tambien la sesion del servidor.
+
+## Asistente de IA
+
+La IA usa la API compatible con OpenAI de Groq. Para activarla, copia el archivo de ejemplo:
+
+```bash
+copy .env.example .env.local
+```
+
+En macOS o Linux:
+
+```bash
+cp .env.example .env.local
+```
+
+Configura `.env.local`:
+
+```env
+GROQ_API_KEY=tu_clave_de_groq
+GROQ_MODEL=openai/gpt-oss-120b
+```
+
+Reinicia el servidor despues de modificar las variables. La clave solo se usa en el servidor y nunca debe llevar el prefijo `NEXT_PUBLIC_`.
+
+En **Asistente** puedes pedir:
+
+- Resumen ejecutivo del proyecto.
+- Riesgos y siguiente accion.
+- Analisis de un pull request o problema de codigo.
+- Mensaje de commit o descripcion de pull request.
+- Propuesta de mejora para un archivo del repositorio.
+
+La IA recibe como maximo 300 registros recientes y 300 rutas de archivos. El resultado debe revisarse antes de tomar decisiones.
+
+## Propuestas de codigo
+
+1. Abre **Asistente**.
+2. Escribe una solicitud concreta.
+3. Selecciona una ruta del inventario.
+4. Pulsa **Proponer cambio para revision**.
+5. Revisa motivo, riesgos, pruebas sugeridas y contenido antes/despues.
+6. Marca la autorizacion y pulsa **Aprobar y crear rama**.
+
+La aplicacion crea una rama `pecc/proposal-ID`. No modifica la rama principal, no hace merge y no crea un pull request automaticamente. Ejecuta las pruebas por tu cuenta antes de abrir un pull request.
+
+No se aceptan archivos de secretos, claves privadas, certificados, `.env` ni archivos de mas de 24 KB para propuestas.
+
+## Tema visual
+
+El icono de sol/luna de la barra superior cambia entre tema claro y oscuro. La preferencia se guarda localmente en el navegador y el cambio tiene una transicion suave.
+
+## Limites actuales
+
+- La sincronizacion es manual.
+- Se consultan hasta 2.000 registros por coleccion y se muestra un aviso si se alcanza ese limite.
+- No se descargan todas las ramas, comentarios, revisiones, CI, releases ni el historial completo de los tableros.
+- La asignacion de una tarea no demuestra quien completo el trabajo.
+- GitLab, Bitbucket, Jira Server y Taiga autoalojado no tienen conector.
+- Las sesiones viven en memoria del proceso y se pierden al reiniciar el servidor.
+- Una sincronizacion valida renueva la sesion por cuatro horas; cerrar sesion elimina las credenciales del servidor.
+- La contrasena de Taiga se descarta despues de obtener el token de autenticacion de la API.
+- El login local es solo para demostracion y no ofrece seguridad multiusuario.
+
+## Verificacion
+
+Ejecuta el chequeo de TypeScript:
 
 ```bash
 npx tsc --noEmit
+```
+
+Ejecuta las pruebas:
+
+```bash
 node --test tests/live.test.cjs
+```
+
+Genera la compilacion de produccion:
+
+```bash
 npm run build
 ```
 
-Las pruebas usan respuestas API controladas y verifican paginaci?n, fallos parciales, validaci?n de URLs, aislamiento de propuestas, rechazo sin escritura, aprobaci?n ?nica y cambios de rama base. La prueba integral con cuentas reales requiere tus credenciales.
+Para probar la compilacion localmente:
 
-## Documentaci?n de proveedores
+```bash
+npm run start
+```
+
+## Variables de entorno
+
+El archivo `.env.example` contiene las variables opcionales para Groq. El archivo `.env.local` es local y no debe subirse al repositorio.
+
+```env
+GROQ_API_KEY=
+GROQ_MODEL=openai/gpt-oss-120b
+```
+
+## Estructura principal
+
+```text
+app/
+  api/live/route.ts       API de sincronizacion y asistente
+  globals.css             Tema y estilos globales
+  page.tsx                Entrada con login local
+components/
+  auth/auth-gate.tsx      Login, registro y cuenta demo
+  control-center/         Panel, conexiones y vistas
+lib/
+  integrations.ts         Adaptadores GitHub, Taiga, Jira y Notion
+  live-server.ts          Sesiones, sincronizacion y propuestas
+  live-types.ts           Tipos compartidos
+tests/
+  live.test.cjs           Pruebas de integraciones y propuestas
+```
+
+## Seguridad antes de produccion
+
+Antes de publicar PECC como servicio compartido se necesita:
+
+- Autenticacion real con un proveedor como Supabase Auth, Auth.js u otro.
+- Contraseñas con hash y nunca almacenadas en `localStorage`.
+- Base de datos persistente para usuarios, proyectos y conexiones.
+- Cifrado de tokens externos y gestion de secretos.
+- Row-level security o permisos equivalentes por usuario.
+- Roles de PM, colaborador y aprobador.
+- Auditoria persistente de sincronizaciones y aprobaciones.
+- Limites de uso y proteccion contra abuso.
+
+## Documentacion de proveedores
 
 - [GitHub Git trees](https://docs.github.com/en/rest/git/trees)
-- [Jira issue search](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/)
+- [Jira Cloud REST API](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/)
 - [Notion data sources](https://developers.notion.com/reference/query-a-data-source)
 - [Taiga REST API](https://docs.taiga.io/api.html)
 - [Groq Chat Completions](https://console.groq.com/docs/api-reference#chat-create)
 
-## Leer y editar notas de Notion
+## Licencia
 
-Despu?s de conectar la base de datos (por ejemplo, Notas), entra en **Producto ? Documentos y notas de Notion** y abre una entrada como Resumen ejecutivo. La app consulta el contenido de sus bloques al abrirla.
-
-Para modificar un bloque de texto simple: **Editar texto ? Preparar cambio para revisi?n ? marcar autorizaci?n ? Aprobar y guardar en Notion**. La propuesta se guarda en la sesi?n; la aprobaci?n aplica ese contenido exacto. Rechazar no modifica Notion. Si el bloque cambi? desde su lectura, se rechaza el guardado y debes volver a abrir la nota. Notion no ofrece aqu? una escritura condicional at?mica: evita editar simult?neamente el mismo bloque durante el guardado.
-
-La integraci?n debe tener **Leer contenido** para abrir notas y **Actualizar contenido** para guardarlas, adem?s de acceso expl?cito a la base. Un enlace p?blico o una captura no concede permisos de escritura. Esta versi?n conserva el m?todo de token manual; no incluye OAuth.
-
-La vista carga hasta 500 bloques, 20 consultas y 5 niveles de profundidad por nota. Indica la cobertura parcial. Admite editar p?rrafos, encabezados, listas, citas, tareas y desplegables con texto simple de hasta 2.000 caracteres. Conserva los dem?s atributos del bloque. Los bloques con enlaces, menciones o formato son de solo lectura; adjuntos, subp?ginas y bloques sincronizados se consultan en Notion. No crea ni elimina notas y no modifica t?tulos o propiedades de la base. El contenido abierto no se incorpora autom?ticamente al contexto del asistente ejecutivo.
-
-Se guardan hasta 20 notas le?das y 30 propuestas por sincronizaci?n en la sesi?n. Una nueva sincronizaci?n invalida las propuestas anteriores. Si falla una escritura, revisa el original antes de intentar otra: no hay reintentos autom?ticos.
-
-Referencias: [contenido de p?ginas](https://developers.notion.com/guides/data-apis/working-with-page-content) y [actualizaci?n de bloques](https://developers.notion.com/reference/update-a-block).
+No se ha definido una licencia para este repositorio. Agrega una licencia antes de distribuirlo publicamente.

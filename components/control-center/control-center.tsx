@@ -2,7 +2,7 @@
 
 import { LiveConnections } from './live-connections'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Activity,
   Boxes,
@@ -74,12 +74,32 @@ const meta: Record<View, { title: string; subtitle: string }> = {
   },
 }
 
-export function ControlCenter() { return <LiveProvider><LiveControlCenter /></LiveProvider> }
+export function ControlCenter({ userName, onLogout }: { userName?: string; onLogout?: () => void }) { return <LiveProvider><LiveControlCenter userName={userName} onLogout={onLogout} /></LiveProvider> }
 
-function LiveControlCenter() {
+function LiveControlCenter({ userName, onLogout }: { userName?: string; onLogout?: () => void }) {
   const [view, setView] = useState<View>('overview')
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const { snapshot } = useLive()
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem('pecc-theme')
+    const nextTheme = stored === 'light' ? 'light' : 'dark'
+    setTheme(nextTheme)
+    document.documentElement.classList.toggle('dark', nextTheme === 'dark')
+    document.documentElement.classList.toggle('light', nextTheme === 'light')
+  }, [])
+
+  function toggleTheme() {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark'
+    setTheme(nextTheme)
+    window.localStorage.setItem('pecc-theme', nextTheme)
+    const root = document.documentElement
+    root.classList.add('pecc-theme-transition')
+    root.classList.toggle('dark', nextTheme === 'dark')
+    root.classList.toggle('light', nextTheme === 'light')
+    window.setTimeout(() => root.classList.remove('pecc-theme-transition'), 360)
+  }
 
   const nav: NavItem[] = [
     { id: 'overview', label: 'Resumen', icon: <LayoutDashboard className="size-4" /> },
@@ -124,8 +144,12 @@ function LiveControlCenter() {
           subtitle={meta[view].subtitle}
           onOpenMobile={() => setMobileOpen(true)}
           onOpenConnections={() => setView('connections')}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onLogout={onLogout}
+          userName={userName}
         />
-        <main className="pecc-reveal flex-1 p-4 lg:p-6">
+        <main key={view} className="pecc-reveal flex-1 p-4 lg:p-6">
           {view === 'connections' ? <LiveConnections /> : view === 'assistant' ? <LiveAssistant /> : view === 'presentation' ? <LivePresentation /> : <LiveRecords key={view} view={view} />}
         </main>
       </div>

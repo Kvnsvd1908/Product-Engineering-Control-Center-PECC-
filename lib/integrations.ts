@@ -87,10 +87,11 @@ async function board(s: Settings, warnings: string[]): Promise<Evidence[]> {
     const slug = url.pathname.match(/\/project\/([^/]+)/)?.[1]
     if (!slug) throw new Error('La URL debe incluir /project/slug.')
     const base = 'https://api.taiga.io/api/v1'
-    const project = await api(`${base}/projects/by_slug?slug=${encodeURIComponent(slug)}`, s.boardToken)
+    const token = await taigaToken(s, base)
+    const project = await api(`${base}/projects/by_slug?slug=${encodeURIComponent(slug)}`, token)
     const rows: Evidence[] = []
     for (const kind of ['userstories', 'tasks', 'issues']) {
-      const data = await pages(p => api(`${base}/${kind}?project=${project.id}&page=${p}&page_size=100`, s.boardToken), warnings, `Taiga ${kind}`)
+      const data = await pages(p => api(`${base}/${kind}?project=${project.id}&page=${p}&page_size=100`, token), warnings, `Taiga ${kind}`)
       rows.push(...data.map(x => ({ id: `${kind}:${x.id}`, title: x.subject, url: `${url.origin}/project/${slug}/${kind === 'userstories' ? 'us' : kind === 'tasks' ? 'task' : 'issue'}/${x.ref}`, actor: project.members?.find((m: Row) => m.id === x.owner)?.full_name || `Usuario ${x.owner ?? 'desconocido'}`, assignee: x.assigned_to_extra_info?.full_name, date: x.modified_date, status: x.status_extra_info?.name || String(x.status), kind: 'taiga' })))
     }
     return rows
@@ -120,4 +121,20 @@ async function board(s: Settings, warnings: string[]): Promise<Evidence[]> {
     const props = Object.values(x.properties) as Row[]
     return { id: x.id, title: props.find(p => p.type === 'title')?.title.map((t: Row) => t.plain_text).join('') || 'Sin título', url: x.url, actor: `Editor ${x.last_edited_by?.id || 'desconocido'}`, assignee: props.filter(p => p.type === 'people').flatMap(p => p.people.map((u: Row) => u.name || u.id)).join(', '), date: x.last_edited_time, status: props.find(p => p.type === 'status')?.status?.name || props.find(p => p.type === 'select')?.select?.name || 'Sin estado', kind: 'notion' }
   })
+}
+
+async function taigaToken(settings: Settings, base: string) {
+  if (settings.boardToken) return settings.boardToken
+  if (!settings.taigaUsername || !settings.taigaPassword) throw new Error('Introduce tu usuario y contraseña de Taiga.')
+  let result: Row
+  try {
+    result = await api(`${base}/auth`, '', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'normal', username: settings.taigaUsername, password: settings.taigaPassword }) })
+  } catch (error) {
+    if ((error as Error).message.includes('HTTP 401')) throw new Error('Taiga rechazó las credenciales. Usa tu nombre de usuario de Taiga, no el nombre del proyecto, y comprueba la contraseña.')
+    throw error
+  }
+  if (typeof result.auth_token !== 'string' || !result.auth_token) throw new Error('Taiga no devolvió un token de autenticación.')
+  settings.boardToken = result.auth_token
+  settings.taigaPassword = ''
+  return result.auth_token
 }

@@ -11,11 +11,18 @@ const healthStyles: Record<HealthLevel, { label: string; dot: string; panel: str
   yellow: { label: 'Requiere atención', dot: 'bg-warning', panel: 'border-warning/30 bg-warning/5' },
   red: { label: 'En riesgo', dot: 'bg-danger', panel: 'border-danger/30 bg-danger/5' },
 }
-export async function requestLive(action: string, body: object = {}) {
-  const response = await fetch('/api/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...body }) })
-  const result = await response.json()
+export async function requestLive<T = any>(action: string, body: object = {}): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch('/api/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...body }), signal: AbortSignal.timeout(300000) })
+  } catch (error) {
+    if ((error as Error).name === 'TimeoutError') throw new Error('La operación tardó demasiado. Revisa la conexión e inténtalo nuevamente.')
+    throw new Error('No se pudo contactar con el servidor local. Comprueba que la aplicación siga ejecutándose.')
+  }
+  let result: { data?: unknown; error?: string }
+  try { result = await response.json() } catch { throw new Error('El servidor devolvió una respuesta inválida. Reinicia la aplicación e inténtalo nuevamente.') }
   if (!response.ok) throw new Error(result.error || 'No se pudo completar la solicitud.')
-  return result.data
+  return result.data as T
 }
 const Context = createContext<{ snapshot: Snapshot | null; setSnapshot: (s: Snapshot | null) => void; loading: boolean }>({ snapshot: null, setSnapshot: () => {}, loading: true })
 export const useLive = () => useContext(Context)
@@ -26,7 +33,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
 }
 export function LiveRecords({ view = 'overview' }: { view?: string }) {
   const { snapshot: s, loading } = useLive()
-  const [query, setQuery] = useState(''), [limit, setLimit] = useState(100)
+  const [query, setQuery] = useState(''), [kindFilter, setKindFilter] = useState('all'), [statusFilter, setStatusFilter] = useState('all'), [limit, setLimit] = useState(100)
   if (!s) return <p>{loading ? 'Recuperando sesión…' : 'Conecta un repositorio en Conexiones para consultar datos reales.'}</p>
   const normalizeStatus = (status: string) => status.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
   const taigaInProgress = s.records
@@ -36,7 +43,9 @@ export function LiveRecords({ view = 'overview' }: { view?: string }) {
   const recentCommits = s.records.filter(r => r.kind === 'commit').sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
   const recentPrs = s.records.filter(r => r.kind === 'pr').sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
   const health = projectHealth(s)
-  const records = s.records.filter(r => (view !== 'pull_requests' || r.kind === 'pr') && (!['product', 'workflow'].includes(view) || !['commit', 'pr'].includes(r.kind)) && `${r.title} ${r.actor} ${r.assignee} ${r.status}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) => b.date.localeCompare(a.date))
+  const kinds = [...new Set(s.records.map(record => record.kind))].sort()
+  const statuses = [...new Set(s.records.map(record => record.status || 'Sin estado'))].sort()
+  const records = s.records.filter(r => (view !== 'pull_requests' || r.kind === 'pr') && (!['product', 'workflow'].includes(view) || !['commit', 'pr'].includes(r.kind)) && (kindFilter === 'all' || r.kind === kindFilter) && (statusFilter === 'all' || (r.status || 'Sin estado') === statusFilter) && `${r.title} ${r.actor} ${r.assignee} ${r.status}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) => b.date.localeCompare(a.date))
   return <div className="space-y-5">{view === 'product' && <NotionNotes />}<div className="flex flex-wrap justify-between gap-3"><a className="text-primary underline" href={s.url} target="_blank" rel="noreferrer">{s.repo}</a><span className="text-sm text-muted-foreground">{s.branch} · {new Date(s.syncedAt).toLocaleString()}</span></div>
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[['Commits consultados', s.records.filter(r => r.kind === 'commit').length], ['PRs fusionados', s.records.filter(r => r.kind === 'pr' && r.status === 'merged').length], ['PRs abiertos', s.records.filter(r => r.kind === 'pr' && r.status === 'open').length], ['Archivos inventariados', s.files.length]].map(([label, value]) => <div className="rounded-lg border p-4" key={label}><p className="text-sm text-muted-foreground">{label}</p><p className="text-2xl font-semibold">{value}</p></div>)}</div>
     {view === 'overview' && (
@@ -106,7 +115,17 @@ export function LiveRecords({ view = 'overview' }: { view?: string }) {
       </div>
     )}
     <details className="rounded-lg border p-4" open><summary>Cobertura de los datos y avisos</summary><ul className="mt-3 list-disc pl-5 text-sm space-y-2">{s.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul></details>
-    {view === 'alerts' ? <div className="space-y-3">{health.risks.length ? health.risks.map(risk => <RiskCard key={risk.id} risk={risk} />) : <p className="rounded-lg border border-success/30 bg-success/5 p-4 text-sm">No hay riesgos accionables detectados con la información sincronizada.</p>}</div> : ['product', 'workflow', 'traceability', 'pull_requests', 'activity'].includes(view) ? <LiveSpecialView view={view} records={s.records} /> : <><label className="block"><span className="text-sm">Buscar por trabajo, persona o estado</span><input className={field} value={query} onChange={e => { setQuery(e.target.value); setLimit(100) }} /></label><p className="text-sm">{records.length} registros · autor de commit/PR/issue, creador Jira/Taiga o último editor Notion. La asignación se muestra por separado.</p><div className="overflow-auto rounded-lg border"><table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-3">Trabajo / evidencia</th><th className="p-3">Autor / editor</th><th className="p-3">Asignado a</th><th className="p-3">Estado</th><th className="p-3">Fecha</th></tr></thead><tbody>{records.slice(0, limit).map(r => <tr className="border-b" key={`${r.kind}:${r.id}`}><td className="p-3"><span className="text-xs text-muted-foreground">{r.kind} · </span><a href={/^https:\/\//.test(r.url) ? r.url : undefined} target="_blank" rel="noreferrer" className="text-primary hover:underline">{r.title}</a></td><td className="p-3">{r.actor}</td><td className="p-3">{r.assignee || 'Sin asignar'}</td><td className="p-3">{r.status}</td><td className="p-3 whitespace-nowrap">{r.date ? new Date(r.date).toLocaleString() : 'Sin fecha'}</td></tr>)}</tbody></table></div>{!records.length && <p>No hay registros para esta vista.</p>}{records.length > limit && <button className={button} onClick={() => setLimit(n => n + 100)}>Mostrar más</button>}</>}
+    {view === 'alerts' ? <div className="space-y-3">{health.risks.length ? health.risks.map(risk => <RiskCard key={risk.id} risk={risk} />) : <p className="rounded-lg border border-success/30 bg-success/5 p-4 text-sm">No hay riesgos accionables detectados con la información sincronizada.</p>}</div> : ['product', 'workflow', 'traceability', 'pull_requests', 'activity'].includes(view) ? <LiveSpecialView view={view} records={s.records} /> : <>
+      <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-[minmax(0,1fr)_180px_180px]">
+        <label className="block"><span className="text-sm">Buscar por trabajo, persona o estado</span><input className={field} value={query} onChange={e => { setQuery(e.target.value); setLimit(100) }} placeholder="Ej. Kevin, ready, HU-05" /></label>
+        <label className="block"><span className="text-sm">Fuente</span><select className={field} value={kindFilter} onChange={e => { setKindFilter(e.target.value); setLimit(100) }}><option value="all">Todas las fuentes</option>{kinds.map(kind => <option key={kind} value={kind}>{kind}</option>)}</select></label>
+        <label className="block"><span className="text-sm">Estado</span><select className={field} value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setLimit(100) }}><option value="all">Todos los estados</option>{statuses.map(status => <option key={status} value={status}>{status}</option>)}</select></label>
+      </div>
+      <p className="text-sm">{records.length} registros · autor de commit/PR/issue, creador Jira/Taiga o último editor Notion. La asignación se muestra por separado.</p>
+      <div className="overflow-auto rounded-lg border"><table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-3">Trabajo / evidencia</th><th className="p-3">Autor / editor</th><th className="p-3">Asignado a</th><th className="p-3">Estado</th><th className="p-3">Fecha</th></tr></thead><tbody>{records.slice(0, limit).map(r => <tr className="border-b" key={`${r.kind}:${r.id}`}><td className="p-3"><span className="text-xs text-muted-foreground">{r.kind} · </span><a href={/^https:\/\//.test(r.url) ? r.url : undefined} target="_blank" rel="noreferrer" className="text-primary hover:underline">{r.title}</a></td><td className="p-3">{r.actor}</td><td className="p-3">{r.assignee || 'Sin asignar'}</td><td className="p-3">{r.status}</td><td className="p-3 whitespace-nowrap">{r.date ? new Date(r.date).toLocaleString() : 'Sin fecha'}</td></tr>)}</tbody></table></div>
+      {!records.length && <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">No hay registros que coincidan con esos filtros.</p>}
+      {records.length > limit && <button className={button} onClick={() => setLimit(n => n + 100)}>Mostrar más</button>}
+    </>}
   </div>
 }
 
@@ -160,6 +179,58 @@ export function LivePresentation() {
     <section className="rounded-lg border bg-card p-5"><h2 className="text-lg font-semibold">Avances recientes</h2>{completed.length ? <ul className="mt-4 grid gap-3 md:grid-cols-2">{completed.map(record => <li key={`${record.kind}:${record.id}`} className="rounded-md bg-muted/40 p-3"><p className="font-medium">{record.title}</p><p className="mt-1 text-xs text-muted-foreground">{record.actor} · {record.status}</p></li>)}</ul> : <p className="mt-4 text-sm text-muted-foreground">No hay entregas completadas visibles.</p>}</section>
   </div>
 }
+
+function InlineMarkdown({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  return <>{parts.map((part, index) => part.startsWith('**') && part.endsWith('**') ? <strong key={index}>{part.slice(2, -2)}</strong> : part)}</>
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  const lines = content.replace(/\r/g, '').split('\n')
+  const blocks: Array<{ type: 'heading' | 'list' | 'code' | 'paragraph'; lines: string[] }> = []
+  let index = 0
+
+  while (index < lines.length) {
+    const line = lines[index].trim()
+    if (!line) {
+      index += 1
+      continue
+    }
+    if (line.startsWith('```')) {
+      const code: string[] = []
+      index += 1
+      while (index < lines.length && !lines[index].trim().startsWith('```')) code.push(lines[index++])
+      index += 1
+      blocks.push({ type: 'code', lines: code })
+      continue
+    }
+    if (/^(?:#{1,3}\s|\*\*[^*]+\*\*$)/.test(line)) {
+      blocks.push({ type: 'heading', lines: [line.replace(/^#{1,3}\s/, '')] })
+      index += 1
+      continue
+    }
+    if (/^(?:[-*•]\s)/.test(line)) {
+      const list: string[] = []
+      while (index < lines.length && /^(?:\s*[-*•]\s)/.test(lines[index])) list.push(lines[index++].replace(/^\s*[-*•]\s/, ''))
+      blocks.push({ type: 'list', lines: list })
+      continue
+    }
+    const paragraph: string[] = [line]
+    index += 1
+    while (index < lines.length && lines[index].trim() && !/^(?:#{1,3}\s|\*\*[^*]+\*\*$|```|\s*[-*•]\s)/.test(lines[index])) paragraph.push(lines[index++].trim())
+    blocks.push({ type: 'paragraph', lines: paragraph })
+  }
+
+  return <div className="space-y-4 text-sm leading-7">
+    {blocks.map((block, blockIndex) => {
+      if (block.type === 'heading') return <h3 className="border-l-2 border-primary pl-3 text-base font-semibold text-foreground" key={blockIndex}><InlineMarkdown text={block.lines[0]} /></h3>
+      if (block.type === 'code') return <pre className="overflow-x-auto rounded-lg border border-border/70 bg-background/80 p-4 font-mono text-xs leading-6 text-primary-foreground" key={blockIndex}><code>{block.lines.join('\n')}</code></pre>
+      if (block.type === 'list') return <ul className="space-y-2 rounded-lg border border-border/60 bg-background/30 p-4" key={blockIndex}>{block.lines.map((item, itemIndex) => <li className="flex gap-3" key={itemIndex}><span className="mt-3 size-1.5 shrink-0 rounded-full bg-primary" /><span><InlineMarkdown text={item} /></span></li>)}</ul>
+      return <p className="text-pretty text-muted-foreground" key={blockIndex}><InlineMarkdown text={block.lines.join(' ')} /></p>
+    })}
+  </div>
+}
+
 export function LiveAssistant() {
   const { snapshot } = useLive()
   const [prompt, setPrompt] = useState('Genera un resumen ejecutivo de los avances, autores, pendientes y riesgos.'), [path, setPath] = useState(''), [answer, setAnswer] = useState<{ answer: string; commitMessage?: string | null; pullRequest?: { title: string; description: string } | null; codeSuggestions?: Array<{ path: string; issue: string; recommendation: string }>; codeReview?: Array<{ severity: string; file: string; issue: string; recommendation: string; tests: string }> } | null>(null), [proposals, setProposals] = useState<Proposal[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState(''), [approved, setApproved] = useState<Record<string, boolean>>({})
@@ -173,7 +244,7 @@ export function LiveAssistant() {
   return <div className="max-w-5xl space-y-5"><p>El asistente genera resúmenes usando datos sincronizados. Al pedir una propuesta, envía a OpenAI el archivo seleccionado para sugerir mejoras. También puede redactar mensajes de commit, preparar PR y revisar el código con severidad, riesgo y pruebas sugeridas.</p><p className="text-sm text-muted-foreground">Los resúmenes envían hasta 300 registros recientes. Las propuestas analizan un archivo de hasta 24 KB. Las pruebas sugeridas deben ejecutarse antes de integrar la rama.</p>
     <label className="block space-y-2"><span>Solicitud</span><textarea maxLength={4000} rows={4} className={field} value={prompt} onChange={e => setPrompt(e.target.value)} /></label><button className={button} disabled={busy || !snapshot || !prompt.trim()} onClick={() => act('assistant')}>Generar respuesta ejecutiva</button>
     <div className="rounded-lg border p-4 space-y-3"><label className="block space-y-2"><span>Archivo que quieres revisar</span><input className={field} list="repo-files" placeholder="Selecciona o escribe la ruta exacta" value={path} onChange={e => setPath(e.target.value)} /><datalist id="repo-files">{snapshot?.files.map(f => <option key={f} value={f} />)}</datalist></label><button className={button} disabled={busy || !snapshot || !path || !prompt.trim()} onClick={() => act('propose')}>Proponer cambio para revisión</button></div>
-    <p role="status">{busy ? 'Procesando…' : error}</p>{answer && <article className="space-y-5 rounded-lg border p-5"><div className="whitespace-pre-wrap">{answer.answer}</div>{answer.commitMessage && <div className="rounded-md border bg-muted/30 p-3"><h3 className="font-semibold">Mensaje de commit sugerido</h3><p className="mt-2 whitespace-pre-wrap">{answer.commitMessage}</p></div>}{answer.pullRequest && <div className="rounded-md border bg-muted/30 p-3"><h3 className="font-semibold">Pull request sugerido</h3><p className="mt-2 font-medium">{answer.pullRequest.title}</p><div className="mt-2 whitespace-pre-wrap text-sm">{answer.pullRequest.description}</div></div>}{answer.codeSuggestions && answer.codeSuggestions.length > 0 && <div className="rounded-md border bg-muted/30 p-3"><h3 className="font-semibold">Sugerencias de código</h3><ul className="mt-3 space-y-3">{answer.codeSuggestions.map((s, index) => <li key={`${s.path}-${index}`} className="rounded border bg-background/40 p-3"><p className="font-medium">{s.path}</p><p className="mt-1 text-sm"><span className="font-medium">Problema:</span> {s.issue}</p><p className="mt-1 text-sm"><span className="font-medium">Recomendación:</span> {s.recommendation}</p></li>)}</ul></div>}{answer.codeReview && answer.codeReview.length > 0 && <div className="rounded-md border bg-muted/30 p-3"><h3 className="font-semibold">Revisión de código</h3><ul className="mt-3 space-y-3">{answer.codeReview.map((item, index) => <li key={`${item.file}-${index}`} className="rounded border bg-background/40 p-3"><div className="flex items-center justify-between gap-3"><p className="font-medium">{item.file}</p><span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs uppercase tracking-wide text-primary">{item.severity}</span></div><p className="mt-1 text-sm"><span className="font-medium">Problema:</span> {item.issue}</p><p className="mt-1 text-sm"><span className="font-medium">Recomendación:</span> {item.recommendation}</p><p className="mt-1 text-sm"><span className="font-medium">Pruebas:</span> {item.tests}</p></li>)}</ul></div>}</article>}
+    <p role="status">{busy ? 'Procesando…' : error}</p>{answer && <article className="space-y-5 rounded-lg border border-primary/20 bg-card p-5 shadow-lg shadow-black/10"><MarkdownContent content={answer.answer} />{answer.commitMessage && <div className="rounded-md border bg-muted/30 p-3"><h3 className="font-semibold">Mensaje de commit sugerido</h3><p className="mt-2 whitespace-pre-wrap">{answer.commitMessage}</p></div>}{answer.pullRequest && <div className="rounded-md border bg-muted/30 p-3"><h3 className="font-semibold">Pull request sugerido</h3><p className="mt-2 font-medium">{answer.pullRequest.title}</p><div className="mt-2 whitespace-pre-wrap text-sm">{answer.pullRequest.description}</div></div>}{answer.codeSuggestions && answer.codeSuggestions.length > 0 && <div className="rounded-md border bg-muted/30 p-3"><h3 className="font-semibold">Sugerencias de código</h3><ul className="mt-3 space-y-3">{answer.codeSuggestions.map((s, index) => <li key={`${s.path}-${index}`} className="rounded border bg-background/40 p-3"><p className="font-medium">{s.path}</p><p className="mt-1 text-sm"><span className="font-medium">Problema:</span> {s.issue}</p><p className="mt-1 text-sm"><span className="font-medium">Recomendación:</span> {s.recommendation}</p></li>)}</ul></div>}{answer.codeReview && answer.codeReview.length > 0 && <div className="rounded-md border bg-muted/30 p-3"><h3 className="font-semibold">Revisión de código</h3><ul className="mt-3 space-y-3">{answer.codeReview.map((item, index) => <li key={`${item.file}-${index}`} className="rounded border bg-background/40 p-3"><div className="flex items-center justify-between gap-3"><p className="font-medium">{item.file}</p><span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs uppercase tracking-wide text-primary">{item.severity}</span></div><p className="mt-1 text-sm"><span className="font-medium">Problema:</span> {item.issue}</p><p className="mt-1 text-sm"><span className="font-medium">Recomendación:</span> {item.recommendation}</p><p className="mt-1 text-sm"><span className="font-medium">Pruebas:</span> {item.tests}</p></li>)}</ul></div>}</article>}
     {proposals.map(p => <article className="space-y-4 rounded-lg border p-5" key={p.id}><h2 className="font-semibold">{p.title}</h2><p className="whitespace-pre-wrap">{p.reason}</p><p className="text-sm">{p.path} · Base: {p.head.slice(0, 12)} · Estado: {p.status}</p><div className="grid gap-3 lg:grid-cols-2"><div><h3>Antes</h3><pre className="max-h-96 overflow-auto bg-muted p-3 text-xs">{p.before}</pre></div><div><h3>Después (contenido exacto a guardar)</h3><pre className="max-h-96 overflow-auto bg-muted p-3 text-xs">{p.after}</pre></div></div>{p.status === 'pending' && <><label className="flex items-start gap-2"><input type="checkbox" checked={!!approved[p.id]} onChange={e => setApproved(a => ({ ...a, [p.id]: e.target.checked }))} /><span>Revisé esta propuesta y autorizo crear la rama pecc/proposal-{p.id} con este cambio en {snapshot?.repo}.</span></label><button className={button} disabled={busy || !approved[p.id]} onClick={() => act('approve', { id: p.id, confirmed: true })}>Aprobar y crear rama</button>{' '}<button className={button} disabled={busy} onClick={() => act('reject', { id: p.id })}>Rechazar</button></>}{p.url && <a href={p.url} target="_blank" rel="noreferrer" className="text-primary underline">Ver rama creada en GitHub</a>}</article>)}
   </div>
 }

@@ -16,19 +16,20 @@ export function session(id?: string) {
 }
 export function disconnect(id: string) { sessions.delete(id) }
 export async function synchronize(s: Session, input?: Settings, scope?: string) {
+  s.expires = Date.now() + 4 * 60 * 60 * 1000
   if (scope && !['repo', 'board'].includes(scope)) throw new Error('Tipo de conexión inválido.')
   if (scope === 'board' && !s.settings) throw new Error('Conecta el repositorio primero.')
-  const empty: Settings = { repoUrl: '', gitToken: '', provider: 'none', boardUrl: '', boardToken: '', email: '', projectKey: '' }
+  const empty: Settings = { repoUrl: '', gitToken: '', provider: 'none', boardUrl: '', boardToken: '', email: '', projectKey: '', taigaUsername: '', taigaPassword: '' }
   const settings = input && scope === 'repo'
     ? { ...(s.settings || empty), repoUrl: input.repoUrl, gitToken: input.gitToken }
     : input && scope === 'board'
-      ? { ...s.settings!, provider: input.provider, boardUrl: input.boardUrl, boardToken: input.boardToken, email: input.email, projectKey: input.projectKey }
+      ? { ...s.settings!, provider: input.provider, boardUrl: input.boardUrl, boardToken: input.boardToken || s.settings?.boardToken || '', email: input.email, projectKey: input.projectKey, taigaUsername: input.taigaUsername || s.settings?.taigaUsername || '', taigaPassword: input.taigaPassword || s.settings?.taigaPassword || '' }
       : input || s.settings
   if (!settings || !['none', 'jira', 'taiga', 'notion'].includes(settings.provider)) throw new Error('Configura las conexiones primero.')
   if (settings.provider === 'none') {
-    settings.boardUrl = ''; settings.boardToken = ''; settings.email = ''; settings.projectKey = ''
+    settings.boardUrl = ''; settings.boardToken = ''; settings.email = ''; settings.projectKey = ''; settings.taigaUsername = ''; settings.taigaPassword = ''
   }
-  for (const key of ['repoUrl', 'gitToken', 'boardUrl', 'boardToken', 'email', 'projectKey'] as const) if (typeof settings[key] !== 'string' || settings[key].length > 4096) throw new Error('Configuración inválida.')
+  for (const key of ['repoUrl', 'gitToken', 'boardUrl', 'boardToken', 'email', 'projectKey', 'taigaUsername', 'taigaPassword'] as const) if (typeof settings[key] !== 'string' || settings[key].length > 4096) throw new Error('Configuración inválida.')
   const snapshot = await sync(settings)
   s.settings = settings; s.snapshot = snapshot; s.proposals.clear()
   return snapshot
