@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { useLive } from './live'
 import { GitBranch, Gauge, X } from 'lucide-react'
 import type { View } from '@/components/control-center/control-center'
 import { cn } from '@/lib/utils'
@@ -26,6 +27,7 @@ export function Sidebar({
   mobileOpen: boolean
   onCloseMobile: () => void
 }) {
+  const { snapshot } = useLive()
   const content = (
     <div className="flex h-full flex-col bg-sidebar">
       {/* Brand */}
@@ -55,7 +57,7 @@ export function Sidebar({
               key={item.id}
               onClick={() => onSelect(item.id)}
               className={cn(
-                'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'pecc-hover flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                 isActive
                   ? 'bg-sidebar-accent text-foreground'
                   : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground',
@@ -96,8 +98,8 @@ export function Sidebar({
         >
           <GitBranch className="size-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
           <div className="min-w-0 flex-1">
-            <p className="truncate font-mono text-foreground/80 group-hover:text-foreground">acme/checkout-platform</p>
-            <p className="text-muted-foreground">sincronizado hace 3 min</p>
+            <p className="truncate font-mono text-foreground/80 group-hover:text-foreground">{snapshot?.repo || 'Sin repositorio'}</p>
+            <p className="text-muted-foreground">{snapshot ? 'Datos consultados por API' : 'Configura las conexiones'}</p>
           </div>
           <span className="ml-auto size-2 shrink-0 rounded-full bg-success" title="Conectado" />
         </button>

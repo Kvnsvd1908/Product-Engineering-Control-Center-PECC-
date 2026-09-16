@@ -1,5 +1,7 @@
 'use client'
 
+import { LiveConnections } from './live-connections'
+
 import { useState } from 'react'
 import {
   Activity,
@@ -9,24 +11,17 @@ import {
   Link2,
   MessagesSquare,
   PanelsTopLeft,
+  Presentation,
   Route,
   TriangleAlert,
 } from 'lucide-react'
-import { projectStats } from '@/lib/data'
+import { LiveProvider, LiveRecords, LiveAssistant, LivePresentation, useLive } from './live'
 import { Sidebar, type NavItem } from '@/components/control-center/sidebar'
 import { Topbar } from '@/components/control-center/topbar'
-import { OverviewView } from '@/components/control-center/views/overview'
-import { ProductView } from '@/components/control-center/views/product'
-import { WorkflowView } from '@/components/control-center/views/workflow'
-import { TraceabilityView } from '@/components/control-center/views/traceability'
-import { PullRequestsView } from '@/components/control-center/views/pull-requests'
-import { AlertsView } from '@/components/control-center/views/alerts'
-import { ActivityView } from '@/components/control-center/views/activity'
-import { AssistantView } from '@/components/control-center/views/assistant'
-import { ConnectionsView } from '@/components/control-center/views/connections'
 
 export type View =
   | 'overview'
+  | 'presentation'
   | 'product'
   | 'workflow'
   | 'traceability'
@@ -41,17 +36,21 @@ const meta: Record<View, { title: string; subtitle: string }> = {
     title: 'Resumen del proyecto',
     subtitle: 'Estado general, salud del flujo y alertas prioritarias',
   },
+  presentation: {
+    title: 'Presentación para cliente',
+    subtitle: 'Lectura ejecutiva del estado, avances y riesgos del proyecto',
+  },
   product: {
     title: 'Producto',
-    subtitle: 'Objetivos, épicas, historias y tareas tal como viven en Notion',
+    subtitle: 'Registros del tablero conectado',
   },
   workflow: {
     title: 'Flujo de trabajo',
-    subtitle: 'Tablero Kanban: en qué etapa está cada tarea',
+    subtitle: 'Estado actual de las tareas consultadas',
   },
   traceability: {
     title: 'Trazabilidad',
-    subtitle: 'La cadena desde un objetivo de negocio hasta el código que lo implementa',
+    subtitle: 'Evidencia disponible para revisar tareas y c?digo',
   },
   pull_requests: {
     title: 'Pull requests',
@@ -75,13 +74,16 @@ const meta: Record<View, { title: string; subtitle: string }> = {
   },
 }
 
-export function ControlCenter() {
+export function ControlCenter() { return <LiveProvider><LiveControlCenter /></LiveProvider> }
+
+function LiveControlCenter() {
   const [view, setView] = useState<View>('overview')
   const [mobileOpen, setMobileOpen] = useState(false)
-  const s = projectStats()
+  const { snapshot } = useLive()
 
   const nav: NavItem[] = [
     { id: 'overview', label: 'Resumen', icon: <LayoutDashboard className="size-4" /> },
+    { id: 'presentation', label: 'Presentación', icon: <Presentation className="size-4" /> },
     { id: 'product', label: 'Producto', icon: <Boxes className="size-4" /> },
     { id: 'workflow', label: 'Flujo de trabajo', icon: <PanelsTopLeft className="size-4" /> },
     { id: 'traceability', label: 'Trazabilidad', icon: <Route className="size-4" /> },
@@ -89,13 +91,13 @@ export function ControlCenter() {
       id: 'pull_requests',
       label: 'Pull requests',
       icon: <GitPullRequest className="size-4" />,
-      badge: s.openPrs,
+      badge: snapshot?.records.filter(r => r.kind === 'pr' && r.status === 'open').length,
     },
     {
       id: 'alerts',
       label: 'Alertas',
       icon: <TriangleAlert className="size-4" />,
-      badge: s.highAlerts + s.mediumAlerts,
+      badge: snapshot?.warnings.length,
       badgeTone: 'danger',
     },
     { id: 'activity', label: 'Actividad', icon: <Activity className="size-4" /> },
@@ -104,7 +106,7 @@ export function ControlCenter() {
   ]
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="pecc-shell flex min-h-screen bg-background text-foreground">
       <Sidebar
         nav={nav}
         active={view}
@@ -123,16 +125,8 @@ export function ControlCenter() {
           onOpenMobile={() => setMobileOpen(true)}
           onOpenConnections={() => setView('connections')}
         />
-        <main className="flex-1 p-4 lg:p-6">
-          {view === 'overview' && <OverviewView onNavigate={setView} />}
-          {view === 'product' && <ProductView />}
-          {view === 'workflow' && <WorkflowView />}
-          {view === 'traceability' && <TraceabilityView />}
-          {view === 'pull_requests' && <PullRequestsView />}
-          {view === 'alerts' && <AlertsView />}
-          {view === 'activity' && <ActivityView />}
-          {view === 'assistant' && <AssistantView />}
-          {view === 'connections' && <ConnectionsView />}
+        <main className="pecc-reveal flex-1 p-4 lg:p-6">
+          {view === 'connections' ? <LiveConnections /> : view === 'assistant' ? <LiveAssistant /> : view === 'presentation' ? <LivePresentation /> : <LiveRecords key={view} view={view} />}
         </main>
       </div>
 
@@ -141,7 +135,7 @@ export function ControlCenter() {
         <button
           type="button"
           onClick={() => setView('assistant')}
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 rounded-full bg-primary px-4 py-3 text-xs font-semibold text-primary-foreground shadow-xl transition-all duration-300 hover:scale-105 hover:shadow-2xl focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background cursor-pointer group"
+          className="pecc-hover fixed bottom-6 right-6 z-40 flex items-center gap-2.5 rounded-full bg-primary px-4 py-3 text-xs font-semibold text-primary-foreground shadow-xl transition-all duration-300 hover:scale-105 hover:shadow-2xl focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background cursor-pointer group"
           title="Abrir Asistente IA del Proyecto"
         >
           <span className="relative flex size-2">
