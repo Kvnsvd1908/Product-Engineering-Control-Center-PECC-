@@ -6,6 +6,20 @@ require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileMo
 const { repoName, sync } = require('../lib/integrations.ts')
 const { notionDatabaseId } = require('../lib/notion-url.ts')
 const { resolveNotionDatabase } = require('../lib/notion-database.ts')
+const { buildTraceability, traceabilityUnlinked } = require('../lib/traceability.ts')
+test('trazabilidad: solo relaciona referencias compartidas y conserva elementos sin vínculo', () => {
+  const records = [
+    { id: 'jira-1', kind: 'jira', title: 'PROJ-123 Integración de pagos', url: '', actor: 'Ana', date: '', status: 'In progress', refs: ['PROJ-123'] },
+    { id: 'pr-1', kind: 'pr', title: 'feat: implementa PROJ-123', url: '', actor: 'Ana', date: '', status: 'open' },
+    { id: 'jira-2', kind: 'jira', title: 'PROJ-999 Sin cambios relacionados', url: '', actor: 'Luis', date: '', status: 'Todo', refs: ['PROJ-999'] },
+  ]
+  const links = buildTraceability(records)
+  assert.equal(links.length, 1)
+  assert.equal(links[0].reference, 'PROJ-123')
+  assert.deepEqual(links[0].work.map(record => record.id), ['jira-1'])
+  assert.deepEqual(links[0].technical.map(record => record.id), ['pr-1'])
+  assert.deepEqual(traceabilityUnlinked(records).map(record => record.id), ['jira-2'])
+})
 test('Notion detecta bases dentro de páginas y diferencia permisos de vistas enlazadas', async () => {
   const id = notionDatabaseId('https://app.notion.com/p/3ba8a72b6043804d8e99e800a2d3c75e?v=3ba8a72b604380e588a0000cd78ab71d')
   assert.equal(id, '3ba8a72b6043804d8e99e800a2d3c75e')

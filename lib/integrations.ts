@@ -51,7 +51,7 @@ export async function sync(settings: Settings): Promise<Snapshot> {
     }
     for (const x of r.value) {
       if (index === 2 && x.pull_request) continue
-      records.push({ id: `${index}:${x.sha || x.number}`, title: x.commit?.message || x.title, url: x.html_url, actor: index === 0 ? x.author?.login || x.commit?.author?.name || 'Autor desconocido' : x.user?.login || 'Autor desconocido', assignee: x.assignees?.map((a: Row) => a.login).join(', '), date: x.commit?.author?.date || x.updated_at, status: index === 0 ? 'registrado' : x.merged_at ? 'merged' : x.state, kind: ['commit', 'pr', 'issue'][index] })
+      records.push({ id: `${index}:${x.sha || x.number}`, title: x.commit?.message || x.title, url: x.html_url, actor: index === 0 ? x.author?.login || x.commit?.author?.name || 'Autor desconocido' : x.user?.login || 'Autor desconocido', assignee: x.assignees?.map((a: Row) => a.login).join(', '), date: x.commit?.author?.date || x.updated_at, status: index === 0 ? 'registrado' : x.merged_at ? 'merged' : x.state, kind: ['commit', 'pr', 'issue'][index], refs: x.number ? [`GH#${x.number}`] : undefined })
     }
   })
   if (settings.provider !== 'none') {
@@ -80,7 +80,7 @@ async function board(s: Settings, warnings: string[]): Promise<Evidence[]> {
       if (boardId ? rows.length >= data.total || !data.issues.length : !cursor) break
       if (page === 19) warnings.push('Jira: consulta parcial por límite de paginación.')
     }
-    return rows.map(x => ({ id: x.key, title: x.fields.summary, url: `${url.origin}/browse/${x.key}`, actor: x.fields.creator?.displayName || 'Creador desconocido', assignee: x.fields.assignee?.displayName, date: x.fields.updated, status: x.fields.status.name, kind: 'jira' }))
+    return rows.map(x => ({ id: x.key, title: x.fields.summary, url: `${url.origin}/browse/${x.key}`, actor: x.fields.creator?.displayName || 'Creador desconocido', assignee: x.fields.assignee?.displayName, date: x.fields.updated, status: x.fields.status.name, kind: 'jira', refs: [x.key] }))
   }
   if (s.provider === 'taiga') {
     if (url.hostname !== 'tree.taiga.io') throw new Error('Usa https://tree.taiga.io/project/slug. Taiga autoalojado requiere configurar un conector propio.')
@@ -92,7 +92,7 @@ async function board(s: Settings, warnings: string[]): Promise<Evidence[]> {
     const rows: Evidence[] = []
     for (const kind of ['userstories', 'tasks', 'issues']) {
       const data = await pages(p => api(`${base}/${kind}?project=${project.id}&page=${p}&page_size=100`, token), warnings, `Taiga ${kind}`)
-      rows.push(...data.map(x => ({ id: `${kind}:${x.id}`, title: x.subject, url: `${url.origin}/project/${slug}/${kind === 'userstories' ? 'us' : kind === 'tasks' ? 'task' : 'issue'}/${x.ref}`, actor: project.members?.find((m: Row) => m.id === x.owner)?.full_name || `Usuario ${x.owner ?? 'desconocido'}`, assignee: x.assigned_to_extra_info?.full_name, date: x.modified_date, status: x.status_extra_info?.name || String(x.status), kind: 'taiga' })))
+      rows.push(...data.map(x => ({ id: `${kind}:${x.id}`, title: x.subject, url: `${url.origin}/project/${slug}/${kind === 'userstories' ? 'us' : kind === 'tasks' ? 'task' : 'issue'}/${x.ref}`, actor: project.members?.find((m: Row) => m.id === x.owner)?.full_name || `Usuario ${x.owner ?? 'desconocido'}`, assignee: x.assigned_to_extra_info?.full_name, date: x.modified_date, status: x.status_extra_info?.name || String(x.status), kind: 'taiga', refs: [`TAIGA#${x.ref}`] })))
     }
     return rows
   }
@@ -119,7 +119,7 @@ async function board(s: Settings, warnings: string[]): Promise<Evidence[]> {
   }
   return rows.map(x => {
     const props = Object.values(x.properties) as Row[]
-    return { id: x.id, title: props.find(p => p.type === 'title')?.title.map((t: Row) => t.plain_text).join('') || 'Sin título', url: x.url, actor: `Editor ${x.last_edited_by?.id || 'desconocido'}`, assignee: props.filter(p => p.type === 'people').flatMap(p => p.people.map((u: Row) => u.name || u.id)).join(', '), date: x.last_edited_time, status: props.find(p => p.type === 'status')?.status?.name || props.find(p => p.type === 'select')?.select?.name || 'Sin estado', kind: 'notion' }
+    return { id: x.id, title: props.find(p => p.type === 'title')?.title.map((t: Row) => t.plain_text).join('') || 'Sin título', url: x.url, actor: `Editor ${x.last_edited_by?.id || 'desconocido'}`, assignee: props.filter(p => p.type === 'people').flatMap(p => p.people.map((u: Row) => u.name || u.id)).join(', '), date: x.last_edited_time, status: props.find(p => p.type === 'status')?.status?.name || props.find(p => p.type === 'select')?.select?.name || 'Sin estado', kind: 'notion', refs: [x.id] }
   })
 }
 

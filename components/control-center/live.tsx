@@ -4,6 +4,7 @@ import { NotionNotes } from './notion-notes'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Evidence, Proposal, Snapshot } from '@/lib/live-types'
 import { projectHealth, type HealthLevel, type ProjectRisk } from '@/lib/live-insights'
+import { buildTraceability, traceabilityUnlinked } from '@/lib/traceability'
 const button = 'pecc-hover rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground shadow-[0_6px_16px_oklch(0.2_0.04_220/18%)] disabled:opacity-40 cursor-pointer'
 const field = 'w-full rounded-md border border-input bg-background p-2 text-sm'
 const healthStyles: Record<HealthLevel, { label: string; dot: string; panel: string }> = {
@@ -149,9 +150,34 @@ function LiveSpecialView({ view, records }: { view: string; records: Evidence[] 
   return <section className="space-y-4"><div><h2 className="text-xl font-semibold">{title}</h2><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>
     {view === 'product' && <div className="grid gap-4 md:grid-cols-3"><div className="rounded-lg border bg-card p-4"><p className="text-xs text-muted-foreground">Elementos del tablero</p><p className="mt-1 text-2xl font-semibold">{board.length}</p></div><div className="rounded-lg border bg-card p-4"><p className="text-xs text-muted-foreground">Activos</p><p className="mt-1 text-2xl font-semibold">{board.filter(record => !['done', 'closed', 'accepted', 'resolved', 'finished'].includes(record.status.toLowerCase())).length}</p></div><div className="rounded-lg border bg-card p-4"><p className="text-xs text-muted-foreground">Sin responsable</p><p className="mt-1 text-2xl font-semibold">{board.filter(record => !record.assignee && !['done', 'closed', 'accepted', 'resolved', 'finished'].includes(record.status.toLowerCase())).length}</p></div></div>}
     {view === 'workflow' && <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{grouped.map(status => { const items = records.filter(record => (record.status || 'Sin estado') === status); return <div key={status} className="rounded-lg border bg-card p-4"><div className="flex items-center justify-between"><h3 className="font-semibold">{status}</h3><span className="rounded bg-muted px-2 py-0.5 text-xs">{items.length}</span></div><RecordList records={items.slice(0, 6)} empty="Sin elementos" /></div> })}</div>}
-    {view === 'traceability' && <div className="grid gap-4 lg:grid-cols-2"><div className="rounded-lg border bg-card p-4"><h3 className="font-semibold">Trabajo del tablero</h3><RecordList records={board.filter(record => !['done', 'closed', 'accepted', 'resolved', 'finished'].includes(record.status.toLowerCase())).slice(0, 10)} empty="No hay trabajo de tablero disponible." /></div><div className="rounded-lg border bg-card p-4"><h3 className="font-semibold">Evidencia técnica</h3><RecordList records={[...prs, ...commits].slice(0, 10)} empty="No hay commits o PRs disponibles." /></div></div>}
+    {view === 'traceability' && <TraceabilityView records={records} />}
     {view === 'pull_requests' && <div className="grid gap-4 lg:grid-cols-2"><div className="rounded-lg border bg-card p-4"><h3 className="font-semibold">Abiertos ({prs.filter(record => !['merged', 'closed'].includes(record.status.toLowerCase())).length})</h3><RecordList records={prs.filter(record => !['merged', 'closed'].includes(record.status.toLowerCase()))} empty="No hay pull requests abiertas." /></div><div className="rounded-lg border bg-card p-4"><h3 className="font-semibold">Fusionados o cerrados</h3><RecordList records={prs.filter(record => ['merged', 'closed'].includes(record.status.toLowerCase()))} empty="No hay pull requests cerradas." /></div></div>}
     {view === 'activity' && <div className="rounded-lg border bg-card p-4"><h3 className="font-semibold">Últimos movimientos</h3><RecordList records={[...records].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20)} empty="No hay actividad disponible." /></div>}
+  </section>
+}
+
+function TraceabilityView({ records }: { records: Evidence[] }) {
+  const links = buildTraceability(records)
+  const unlinked = traceabilityUnlinked(records)
+  return <section className="space-y-4">
+    <div className="rounded-lg border bg-card p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><h3 className="font-semibold">Relaciones verificadas</h3><p className="mt-1 text-sm text-muted-foreground">Solo se muestran vínculos cuando una misma referencia aparece en el trabajo y en un commit o pull request.</p></div>
+        <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">{links.length} explícitas</span>
+      </div>
+      {links.length ? <div className="mt-4 space-y-3">{links.map(link => <article key={link.reference} className="rounded-md border bg-background/40 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold">{link.reference}</h4><span className="text-xs text-success">Referencia explícita</span></div>
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Trabajo</p><RecordList records={link.work} empty="Sin elemento de trabajo" /></div>
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Código relacionado</p><RecordList records={link.technical} empty="Sin commit o PR relacionado" /></div>
+        </div>
+      </article>)}</div> : <p className="mt-4 rounded-md border border-dashed p-4 text-sm text-muted-foreground">No hay relaciones explícitas. Añade la clave de la tarea en el título o descripción del commit o pull request, y vuelve a sincronizar.</p>}
+    </div>
+    <details className="rounded-lg border bg-card p-4">
+      <summary className="cursor-pointer font-semibold">Elementos sin vínculo confirmado ({unlinked.length})</summary>
+      <p className="mt-2 text-sm text-muted-foreground">No se consideran errores: solo significa que no se encontró una referencia común.</p>
+      <div className="mt-3"><RecordList records={unlinked.slice(0, 30)} empty="Todos los elementos de trabajo tienen al menos un vínculo explícito." /></div>
+    </details>
   </section>
 }
 
