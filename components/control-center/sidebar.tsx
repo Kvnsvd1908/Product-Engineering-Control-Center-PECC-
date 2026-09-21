@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { useLive } from './live'
-import { GitBranch, Gauge, X } from 'lucide-react'
+import { GitBranch, X } from 'lucide-react'
 import type { View } from '@/components/control-center/control-center'
 import { cn } from '@/lib/utils'
 
@@ -29,16 +29,12 @@ export function Sidebar({
 }) {
   const { snapshot } = useLive()
   const content = (
-    <div className="flex h-full flex-col bg-sidebar">
+    <div className="flex h-full flex-col bg-sidebar/95">
       {/* Brand */}
-      <div className="flex items-center gap-2.5 border-b border-sidebar-border px-4 py-4">
-        <span className="inline-flex size-9 items-center justify-center rounded-md bg-primary/15 text-primary">
-          <Gauge className="size-5" />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold leading-tight">Control Center</p>
-          <p className="truncate text-xs text-muted-foreground">Product Engineering</p>
-        </div>
+      <div className="border-b border-sidebar-border px-4 py-5">
+        <div className="flex items-center gap-2.5">
+        <img src="/logo-pecc.svg" alt="PECC Control Center" className="pecc-logo-dark h-auto w-[172px]" />
+        <img src="/logo-pecc-light.svg" alt="PECC Control Center" className="pecc-logo-light h-auto w-[172px]" />
         <button
           onClick={onCloseMobile}
           className="ml-auto rounded-md p-1 text-muted-foreground hover:bg-sidebar-accent lg:hidden"
@@ -46,6 +42,8 @@ export function Sidebar({
         >
           <X className="size-4" />
         </button>
+        </div>
+        <div className="mt-5 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"><span className="size-1.5 rounded-full bg-success shadow-[0_0_10px_currentColor]" /> Product operations</div>
       </div>
 
       {/* Nav */}
@@ -57,9 +55,9 @@ export function Sidebar({
               key={item.id}
               onClick={() => onSelect(item.id)}
               className={cn(
-                'pecc-hover flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'pecc-hover flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-sidebar-accent text-foreground'
+                  ? 'bg-sidebar-accent text-foreground shadow-[inset_3px_0_0_var(--primary)]'
                   : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground',
               )}
             >

@@ -88,6 +88,7 @@ function LiveControlCenter({ userName, onLogout }: { userName?: string; onLogout
     setTheme(nextTheme)
     document.documentElement.classList.toggle('dark', nextTheme === 'dark')
     document.documentElement.classList.toggle('light', nextTheme === 'light')
+    document.documentElement.style.colorScheme = nextTheme
   }, [])
 
   function toggleTheme() {
@@ -98,6 +99,7 @@ function LiveControlCenter({ userName, onLogout }: { userName?: string; onLogout
     root.classList.add('pecc-theme-transition')
     root.classList.toggle('dark', nextTheme === 'dark')
     root.classList.toggle('light', nextTheme === 'light')
+    root.style.colorScheme = nextTheme
     window.setTimeout(() => root.classList.remove('pecc-theme-transition'), 360)
   }
 

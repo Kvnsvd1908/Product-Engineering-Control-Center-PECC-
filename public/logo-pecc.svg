@@ -1,0 +1,17 @@
+<svg width="620" height="190" viewBox="0 0 620 190" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">PECC Control Center</title>
+  <desc id="desc">Logo de PECC Control Center</desc>
+  <g transform="translate(12 12)">
+    <path d="M103 8C60 8 26 40 18 82C10 124 36 158 78 166" stroke="#B5ED4B" stroke-width="16" stroke-linecap="round"/>
+    <path d="M122 18C164 32 183 76 174 116C166 145 143 163 116 170" stroke="#B5ED4B" stroke-width="16" stroke-linecap="round"/>
+    <circle cx="139" cy="29" r="13" fill="#B5ED4B"/>
+    <rect x="58" y="70" width="16" height="16" rx="3" fill="#B5ED4B"/>
+    <rect x="84" y="70" width="61" height="16" rx="4" fill="#B5ED4B"/>
+    <rect x="58" y="96" width="16" height="16" rx="3" fill="#B5ED4B"/>
+    <rect x="84" y="96" width="47" height="16" rx="4" fill="#B5ED4B"/>
+    <rect x="58" y="122" width="16" height="16" rx="3" fill="#B5ED4B"/>
+    <rect x="84" y="122" width="61" height="16" rx="4" fill="#B5ED4B"/>
+  </g>
+  <text x="218" y="100" fill="#F5F4EE" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="800" letter-spacing="2">PECC</text>
+  <text x="222" y="143" fill="#F5F4EE" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="400" letter-spacing="9">Control Center</text>
+</svg>

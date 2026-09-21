@@ -29,7 +29,7 @@ export function Topbar({
   }
 
   return (
-    <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/78 px-4 py-3 shadow-[0_8px_30px_oklch(0_0_0/12%)] backdrop-blur lg:px-6">
+    <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/82 px-4 py-4 shadow-[0_12px_36px_oklch(0_0_0/16%)] backdrop-blur-xl lg:px-8">
       <button
         onClick={onOpenMobile}
         className="pecc-hover rounded-md p-1.5 text-muted-foreground hover:bg-accent lg:hidden"
@@ -39,8 +39,9 @@ export function Topbar({
       </button>
 
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
-        <p className="hidden truncate text-sm text-muted-foreground sm:block">{subtitle}</p>
+        <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary"><span className="size-1.5 rounded-full bg-primary shadow-[0_0_10px_currentColor]" /> Live workspace</div>
+        <h1 className="truncate text-xl font-semibold tracking-[-0.02em]">{title}</h1>
+        <p className="hidden truncate text-xs text-muted-foreground sm:block">{subtitle}</p>
       </div>
 
 
