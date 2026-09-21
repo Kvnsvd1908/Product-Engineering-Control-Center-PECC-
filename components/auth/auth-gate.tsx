@@ -1,53 +1,46 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ArrowRight, BarChart3, Check, Eye, EyeOff, Focus, Sparkles, Target } from 'lucide-react'
+import { ArrowRight, Check, Eye, EyeOff, Focus, Sparkles, Target } from 'lucide-react'
 import { ControlCenter } from '@/components/control-center/control-center'
+import { createClient } from '@/lib/supabase/client'
+import type { User } from '@supabase/supabase-js'
 
-type Account = { name: string; email: string; password: string }
 type Mode = 'login' | 'register'
 
-const accountKey = 'pecc-demo-account'
-const sessionKey = 'pecc-demo-session'
-const demoAccount: Account = { name: 'PM Demo', email: 'pm@pecc.local', password: 'pecc-demo' }
-
-function readAccount(value: string | null): Account {
-  if (!value) return demoAccount
-  try {
-    const parsed = JSON.parse(value) as Partial<Account>
-    if (typeof parsed.name === 'string' && typeof parsed.email === 'string' && typeof parsed.password === 'string') return { name: parsed.name, email: parsed.email.toLowerCase(), password: parsed.password }
-  } catch { /* Restore the demo account below when local storage is malformed. */ }
-  return demoAccount
-}
-
 export function AuthGate() {
-  const [account, setAccount] = useState<Account | null>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [ready, setReady] = useState(false)
-
-  useEffect(() => {
-    const storedAccount = window.localStorage.getItem(accountKey)
-    const currentAccount = readAccount(storedAccount)
-    if (!storedAccount || currentAccount === demoAccount) window.localStorage.setItem(accountKey, JSON.stringify(currentAccount))
-    const storedSession = window.localStorage.getItem(sessionKey)
-    setAccount(currentAccount)
-    setReady(storedSession === 'active')
-  }, [])
-
-  if (account && ready) return <ControlCenter userName={account.name} onLogout={() => setReady(false)} />
-  return <AuthScreen account={account} onAuthenticated={() => setReady(true)} />
-}
-
-function AuthScreen({ account, onAuthenticated }: { account: Account | null; onAuthenticated: () => void }) {
-  const [mode, setMode] = useState<Mode>(account ? 'login' : 'register')
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState(account?.email ?? '')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (account) setMode('login')
-  }, [account])
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data, error: authError }) => {
+      if (authError) setError(authError.message)
+      setUser(data.user)
+      setReady(true)
+    })
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null))
+    return () => listener.subscription.unsubscribe()
+  }, [])
+
+  async function logout() {
+    await createClient().auth.signOut()
+    setUser(null)
+  }
+
+  if (!ready) return <main className="grid min-h-screen place-items-center bg-[#071216] text-sm text-white">Comprobando tu sesión…</main>
+  if (user) return <ControlCenter userName={user.user_metadata?.name || user.email?.split('@')[0]} onLogout={logout} />
+  return <AuthScreen onAuthenticated={setUser} error={error} />
+}
+
+function AuthScreen({ onAuthenticated, error: authError }: { onAuthenticated: (user: User) => void; error?: string }) {
+  const [mode, setMode] = useState<Mode>('login')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
 
   function switchMode(nextMode: Mode) {
     setMode(nextMode)
@@ -55,34 +48,21 @@ function AuthScreen({ account, onAuthenticated }: { account: Account | null; onA
     setPassword('')
   }
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    setError('')
     const cleanEmail = email.trim().toLowerCase()
     if (!cleanEmail || !password) return setError('Completa tu correo y contraseña.')
     if (password.length < 6) return setError('La contraseña debe tener al menos 6 caracteres.')
-
-    if (mode === 'register') {
-      if (!name.trim()) return setError('Escribe tu nombre para personalizar el espacio de trabajo.')
-      const nextAccount = { name: name.trim(), email: cleanEmail, password }
-      window.localStorage.setItem(accountKey, JSON.stringify(nextAccount))
-      window.localStorage.setItem(sessionKey, 'active')
-      onAuthenticated()
-      return
-    }
-
-    if (cleanEmail === demoAccount.email && password === demoAccount.password) {
-      window.localStorage.setItem(accountKey, JSON.stringify(demoAccount))
-      window.localStorage.setItem(sessionKey, 'active')
-      onAuthenticated()
-      return
-    }
-
-    if (!account || account.email !== cleanEmail || account.password !== password) {
-      setError('El correo o la contraseña no coinciden con la cuenta local.')
-      return
-    }
-    window.localStorage.setItem(sessionKey, 'active')
-    onAuthenticated()
+    if (mode === 'register' && !name.trim()) return setError('Escribe tu nombre para personalizar el espacio de trabajo.')
+    const supabase = createClient()
+    const result = mode === 'register'
+      ? await supabase.auth.signUp({ email: cleanEmail, password, options: { data: { name: name.trim() } } })
+      : await supabase.auth.signInWithPassword({ email: cleanEmail, password })
+    if (result.error) return setError(result.error.message)
+    if (!result.data.user) return setError('Supabase requiere confirmar tu correo antes de entrar.')
+    if (mode === 'register' && !result.data.session) return setError('Revisa tu correo para confirmar la cuenta antes de iniciar sesión.')
+    onAuthenticated(result.data.user)
   }
 
   return (
@@ -92,9 +72,8 @@ function AuthScreen({ account, onAuthenticated }: { account: Account | null; onA
       <div className="auth-sweep auth-sweep-two" aria-hidden="true" />
       <div className="relative mx-auto grid min-h-screen max-w-7xl items-center gap-12 px-6 py-10 lg:grid-cols-[1fr_430px] lg:px-12">
         <section className="max-w-2xl py-6 lg:py-12">
-          <div className="mb-10 flex items-center gap-3 text-sm font-semibold tracking-[0.18em] text-cyan-200/80 uppercase">
-            <span className="flex size-9 items-center justify-center rounded-xl border border-cyan-200/25 bg-cyan-200/10 text-cyan-100"><BarChart3 className="size-4" /></span>
-            PECC / Product Engineering Control Center
+          <div className="mb-10 flex items-center">
+            <img src="/logo-pecc.svg" alt="PECC Control Center" className="h-auto w-[min(100%,370px)]" />
           </div>
           <div className="max-w-xl">
             <p className="mb-5 flex items-center gap-2 text-sm font-medium text-orange-200"><Sparkles className="size-4" /> Tu próximo avance empieza con claridad.</p>
@@ -126,8 +105,8 @@ function AuthScreen({ account, onAuthenticated }: { account: Account | null; onA
               {error && <p role="alert" className="rounded-lg border border-red-300/20 bg-red-400/10 px-3 py-2 text-sm text-red-100">{error}</p>}
               <button type="submit" className="auth-primary-button group flex w-full items-center justify-center gap-2">{mode === 'login' ? 'Entrar al centro de control' : 'Crear mi espacio'}<ArrowRight className="size-4 transition-transform group-hover:translate-x-1" /></button>
             </form>
-            {mode === 'login' && account?.email === demoAccount.email && <div className="mt-5 rounded-lg border border-cyan-200/15 bg-cyan-200/[0.06] p-3 text-xs text-slate-300"><div className="flex items-center justify-between gap-3"><span>Cuenta demo lista para probar</span><button type="button" onClick={() => { setEmail(demoAccount.email); setPassword(demoAccount.password); setError('') }} className="auth-link-button">Cargar acceso</button></div><p className="mt-1 text-slate-500">{demoAccount.email} · contraseña: {demoAccount.password}</p></div>}
-            <p className="mt-6 text-center text-xs leading-5 text-slate-500">Modo local de demostración. Tus datos de acceso se guardan únicamente en este navegador.</p>
+            {authError && <p role="alert" className="mt-5 rounded-lg border border-red-300/20 bg-red-400/10 px-3 py-2 text-sm text-red-100">{authError}</p>}
+            <p className="mt-6 text-center text-xs leading-5 text-slate-500">Autenticación gestionada de forma segura por Supabase.</p>
           </div>
         </section>
       </div>

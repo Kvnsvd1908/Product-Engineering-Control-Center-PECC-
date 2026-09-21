@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { api, gh, sync } from './integrations'
 import type { Proposal, Settings, Snapshot } from './live-types'
 
-type Session = { expires: number; settings?: Settings; snapshot?: Snapshot; proposals: Map<string, Proposal>; busy: boolean }
+export type Session = { expires: number; userId?: string; projectId?: string; settings?: Settings; snapshot?: Snapshot; proposals: Map<string, Proposal>; busy: boolean }
 const globalStore = globalThis as typeof globalThis & { peccSessions?: Map<string, Session> }
 const sessions = globalStore.peccSessions ??= new Map<string, Session>()
 export function session(id?: string) {
